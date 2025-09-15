@@ -1,6 +1,5 @@
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Regular_triangulation_euclidean_traits_2.h>
 #include <CGAL/Regular_triangulation_2.h>
 #include <CGAL/Triangulation_vertex_base_with_info_2.h>
 #include <CGAL/Regular_triangulation_vertex_base_2.h>
@@ -82,17 +81,15 @@ int main(int argc, char** argv){
   if(NW!=N) npy::die("weights.npy: shape (N,) exigée");
 
   using K   = CGAL::Exact_predicates_inexact_constructions_kernel;
-  using Gt  = CGAL::Regular_triangulation_euclidean_traits_2<K>;
-  using Vbb = CGAL::Regular_triangulation_vertex_base_2<Gt>;
-  using Vb  = CGAL::Triangulation_vertex_base_with_info_2<uint64_t, Gt, Vbb>;
-  using Fb  = CGAL::Regular_triangulation_face_base_2<Gt>;
+  using Vbb = CGAL::Regular_triangulation_vertex_base_2<K>;
+  using Vb  = CGAL::Triangulation_vertex_base_with_info_2<uint64_t, K, Vbb>;
+  using Fb  = CGAL::Regular_triangulation_face_base_2<K>;
   using TDS = CGAL::Triangulation_data_structure_2<Vb, Fb>;
-  using RT  = CGAL::Regular_triangulation_2<Gt, TDS>;
+  using RT  = CGAL::Regular_triangulation_2<K, TDS>;
 
   RT rt;
-  rt.reserve(N);
   using WP = RT::Weighted_point;
-  using BP = Gt::Bare_point;
+  using BP = K::Point_2;
 
   for(size_t i=0;i<N;++i){
     const double* r = &P[i*2];
