@@ -14,6 +14,7 @@
 #include <fstream>
 #include <algorithm>
 #include <utility>
+#include <cctype>
 
 
 namespace npy {
@@ -27,8 +28,36 @@ static Header read_header(std::istream& in){
   if(ver[0]==1){ in.read(reinterpret_cast<char*>(&h16),2); hlen=h16; }
   else { in.read(reinterpret_cast<char*>(&h32),4); hlen=h32; }
   std::string hdr(hlen,'\0'); in.read(hdr.data(),hlen); if(!in) die("header .npy tronqué");
-  auto findq=[&](size_t p){auto q1=hdr.find('\'',p);auto q2=hdr.find('\'',q1+1);return std::pair<size_t,size_t>(q1,q2);};
-  auto pd=hdr.find("descr"); if(pd==std::string::npos) die("header invalide (descr)"); auto [q1,q2]=findq(pd); h.descr=hdr.substr(q1+1,q2-q1-1);
+  bool got_descr=false; size_t search=0;
+  while(!got_descr){
+    auto pd=hdr.find("descr", search);
+    if(pd==std::string::npos) break;
+    search=pd+5;
+    bool has_quote=false; char key_quote='\0';
+    if(pd>0){
+      char prev=hdr[pd-1];
+      if(prev=='\'' || prev=='\"'){ has_quote=true; key_quote=prev; }
+      else if(std::isalnum(static_cast<unsigned char>(prev)) || prev=='_') continue;
+    }
+    size_t after=pd+5;
+    if(has_quote){
+      if(after>=hdr.size() || hdr[after]!=key_quote) continue;
+      ++after;
+    } else if(after<hdr.size() && (std::isalnum(static_cast<unsigned char>(hdr[after])) || hdr[after]=='_')) continue;
+    while(after<hdr.size() && std::isspace(static_cast<unsigned char>(hdr[after]))) ++after;
+    if(after>=hdr.size() || hdr[after]!=':') continue;
+    ++after;
+    while(after<hdr.size() && std::isspace(static_cast<unsigned char>(hdr[after]))) ++after;
+    if(after>=hdr.size()) die("header invalide (descr valeur)");
+    char quote=hdr[after];
+    if(quote!='\'' && quote!='\"') die("header invalide (descr valeur)");
+    auto q2=hdr.find(quote, after+1);
+    if(q2==std::string::npos) die("header invalide (descr valeur)");
+    if(q2<=after+1) die("descr invalide");
+    h.descr=hdr.substr(after+1, q2-after-1);
+    got_descr=true;
+  }
+  if(!got_descr) die("header invalide (descr)");
   auto pf=hdr.find("fortran_order"); if(pf==std::string::npos) die("header invalide (fortran_order)"); h.fortran=hdr.find("True",pf)!=std::string::npos;
   auto ps=hdr.find("shape"); if(ps==std::string::npos) die("header invalide (shape)");
   auto lp=hdr.find('(',ps), rp=hdr.find(')',lp); if(lp==std::string::npos||rp==std::string::npos) die("shape invalide");
