@@ -4,6 +4,9 @@
 #include <CGAL/Triangulation_vertex_base_with_info_2.h>
 #include <CGAL/Regular_triangulation_vertex_base_2.h>
 #include <CGAL/Regular_triangulation_face_base_2.h>
+#include <CGAL/spatial_sort.h>
+#include <CGAL/Spatial_sort_traits_adapter_2.h>
+#include <CGAL/property_map.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -115,17 +118,31 @@ int main(int argc, char** argv){
   using Fb  = CGAL::Regular_triangulation_face_base_2<K>;
   using TDS = CGAL::Triangulation_data_structure_2<Vb, Fb>;
   using RT  = CGAL::Regular_triangulation_2<K, TDS>;
-
-  RT rt;
   using WP = RT::Weighted_point;
   using BP = K::Point_2;
 
+  struct Vertex_payload {
+    K::FT weight;
+    uint64_t index;
+  };
+  using Entry = std::pair<BP, Vertex_payload>;
+
+  std::vector<Entry> entries;
+  entries.reserve(N);
   for(size_t i=0;i<N;++i){
     const double* r = &P[i*2];
-    BP p(r[0], r[1]);
-    WP wp(p, W[i]); // poids = poids de puissance (souvent rayon^2)
+    entries.emplace_back(BP(r[0], r[1]), Vertex_payload{K::FT(W[i]), uint64_t(i)});
+  }
+
+  using Point_map = CGAL::First_of_pair_property_map<Entry>;
+  using Sort_traits = CGAL::Spatial_sort_traits_adapter_2<K, Point_map>;
+  CGAL::spatial_sort(entries.begin(), entries.end(), Sort_traits(Point_map()));
+
+  RT rt;
+  for(const auto& entry : entries){
+    WP wp(entry.first, entry.second.weight); // poids = poids de puissance (souvent rayon^2)
     auto vh = rt.insert(wp);
-    if(vh != RT::Vertex_handle()) vh->info() = (uint64_t)i;
+    if(vh != RT::Vertex_handle()) vh->info() = entry.second.index;
   }
 
   std::vector<std::pair<uint64_t,uint64_t>> E;
